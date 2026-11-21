@@ -67,12 +67,16 @@ struct DesktopService: DesktopChanging {
     var displays: [Display] {
         NSScreen.screens.map { screen in
             let isPrimary = screen == NSScreen.screens.first
-            let size = screen.convertRectToBacking(screen.frame).size
             return Display(
                 id: Self.id(for: screen), name: isPrimary ? "主显示器" : screen.localizedName,
-                pixels: PixelSize(width: Int(size.width.rounded()), height: Int(size.height.rounded()))
+                pixels: Self.pixels(for: screen)
             )
         }
+    }
+
+    static func pixels(for screen: NSScreen) -> PixelSize {
+        let size = screen.convertRectToBacking(screen.frame).size
+        return PixelSize(width: Int(size.width.rounded()), height: Int(size.height.rounded()))
     }
 
     func current(on displayID: String?) -> URL? {

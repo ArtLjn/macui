@@ -48,7 +48,9 @@ struct BackgroundWallpaperProcessTests {
         let started = try await waitForFrame(store)
         #expect(!launcher.isRunning)
         #expect(NSRunningApplication(processIdentifier: started.pid)?.isTerminated == false)
-        print("后台播放进程：\(started.pid)，\(memorySummary(pid: started.pid))")
+        print("后台刚开始播放：\(memorySummary(pid: started.pid))")
+        try await Task.sleep(for: .seconds(6))
+        print("后台稳定播放：\(memorySummary(pid: started.pid))")
 
         let control = BackgroundWallpaperClient(helper: helper, root: root)
         #expect(control.isEnabled)

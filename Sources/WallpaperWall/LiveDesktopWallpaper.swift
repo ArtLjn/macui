@@ -47,9 +47,11 @@ final class LiveDesktopWallpaper: NSObject {
         let token = UUID()
         for id in ids { pending[id] = token }
         message = "正在本机分析壁纸景深…"
+        let displays = NSScreen.screens.filter { ids.contains(DesktopService.id(for: $0)) }
+            .map { DesktopService.pixels(for: $0) }
         requests[token] = Task { [weak self, loader] in
             do {
-                let asset = try await loader.load(image, backdrop: backdrop)
+                let asset = try await loader.load(image, backdrop: backdrop, placement: placement, displays: displays)
                 try Task.checkCancellation()
                 self?.install(asset, file: image, token: token, placement: placement, backdrop: backdrop)
             } catch is CancellationError {

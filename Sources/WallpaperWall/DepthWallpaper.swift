@@ -114,16 +114,19 @@ actor DepthWallpaperLoader {
         self.modelURL = modelURL
     }
 
-    func load(_ file: URL, backdrop: DesktopBackdrop) throws -> DepthWallpaperAsset {
+    func load(_ file: URL, backdrop: DesktopBackdrop, placement: Placement,
+              displays: [PixelSize]) throws -> DepthWallpaperAsset {
         try Task.checkCancellation()
+        guard let source = CGImageSourceCreateWithURL(file as CFURL, nil) else {
+            throw WallpaperError.invalidImage
+        }
         let options = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: 4096
+            kCGImageSourceThumbnailMaxPixelSize: Self.textureLimit(source, placement: placement, displays: displays)
         ] as CFDictionary
-        guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
-              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
             throw WallpaperError.invalidImage
         }
         let key = file.standardizedFileURL
@@ -137,6 +140,17 @@ actor DepthWallpaperLoader {
         recent.insert((key, depth), at: 0)
         if recent.count > 6 { recent.removeLast() }
         return try DepthWallpaperAsset(image: image, depth: depth, backdrop: backdrop)
+    }
+
+    private static func textureLimit(_ source: CGImageSource, placement: Placement, displays: [PixelSize]) -> Int {
+        guard let info = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = info[kCGImagePropertyPixelWidth] as? Int,
+              let height = info[kCGImagePropertyPixelHeight] as? Int, width > 0, height > 0 else { return 4096 }
+        let rotated = (5...8).contains(info[kCGImagePropertyOrientation] as? Int ?? 1)
+        let image = PixelSize(width: rotated ? height : width, height: rotated ? width : height)
+        guard let scale = displays.map({ placement.scale(from: image, to: $0) }).max() else { return 4096 }
+        // 按目标屏幕所需的像素上传纹理，并给 2.5D 的轻微裁切留余量。
+        return min(4096, max(1, Int(ceil(Double(max(width, height)) * min(1, scale * 1.025)))))
     }
 
     private func estimate(_ image: CGImage) throws -> DepthField {
